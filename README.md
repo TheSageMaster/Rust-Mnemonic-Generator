@@ -28,10 +28,10 @@ To run this project, you need:
    cd Rust-Mnemonic-Generator
    ```
 
-2. Build:
+2. Build and create a symlink:
    ```
    cargo build --release
-   ln ./target/release/Rust-Mnemonic-Generator Rust-Mnemonic-Generator
+   ln -s ./target/release/Rust-Mnemonic-Generator Rust-Mnemonic-Generator
    ```
 
 3. Run:
