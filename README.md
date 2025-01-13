@@ -23,18 +23,21 @@ To run this project, you need:
 ### Installation
 
 1. Clone this repository:
-   ``bash
+   ```
    git clone https://github.com/yourusername/Rust-Mnemonic-Generator.git
-   cd Rust-Mnemonic-Generator``
+   cd Rust-Mnemonic-Generator
+   ```
 
 2. Build:
-   ``bash
+   ```
    cargo build --release
-   ln ./target/release/Rust-Mnemonic-Generator Rust-Mnemonic-Generator``
+   ln ./target/release/Rust-Mnemonic-Generator Rust-Mnemonic-Generator
+   ```
 
 3. Run:
-   ``bash
-   ./Rust-Mnemonic-Generator``
+   ```
+   ./Rust-Mnemonic-Generator
+   ```
 
 ## How It Works
 
@@ -64,13 +67,14 @@ The seed is used to generate a master private key (xpriv). Using BIP-32, the pro
 
 ### Example Output
 
-``bash
+```
 Entropy: 8bbf9deade037ba27ac2d8e16f7cfa7d
 Mnemonic: menu bicycle sort wool theory prefer measure february install disease dirt good ability
 Seed: 2d54258d147fb594dd7ef5a416f432ae219da8f0da8ee7d0ce451e10fda0c635ceda594b6213da794ec6787c8bd4cf9437ab3246ac698cc9ced4a36ae6042f66
 Extended Private Key: xprv9s21ZrQH143K4TC62fybTm7NPrVXP69z3MykR8aGP5nvgz7z5L266EnxqtkqLnQr3DS8a4XfP3Xs1bguSnRNgUdEUa6Kvr7Jm274EcSqHi7
 Bitcoin Private Key: L1qYVuTvaMSpnXfEm271HTvBdPhcxQWUmAp1Ep4nTKLJWQYgXQyg
-Total Generation Time: 2.8ms``
+Total Generation Time: 2.8ms
+```
 
 ### Dependencies
 
@@ -84,14 +88,16 @@ Total Generation Time: 2.8ms``
 
 The following dependencies are required in your Cargo.toml file:
 
-``[dependencies]
+```
+[dependencies]
 rand = "0.8"
 sha2 = "0.10"
 sha3 = "0.10"
 hmac ={ version = "0.12.1", features = ["std"] }
 bitcoin = "0.32.5"
 secp256k1 = "0.30.0"
-pbkdf2 = "0.12.2"``
+pbkdf2 = "0.12.2"
+```
 
 ### Customization
 
