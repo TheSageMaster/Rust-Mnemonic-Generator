@@ -43,27 +43,27 @@ To run this project, you need:
 
 1. Entropy Generation
 
-The program generates 128 bits of entropy using Rust's rand crate. This entropy is the starting point for generating a BIP-39 mnemonic.
+_The program generates 128 bits of entropy using Rust's rand crate. This entropy is the starting point for generating a BIP-39 mnemonic.
 
 2. Checksum Calculation
 
-A checksum is computed by taking the first (entropy bits / 32) bits of the SHA-256 hash of the entropy. This ensures integrity and adds an extra layer of security to the mnemonic.
+_A checksum is computed by taking the first (entropy bits / 32) bits of the SHA-256 hash of the entropy. This ensures integrity and adds an extra layer of security to the mnemonic.
 
 3. Bit Stream Construction
 
-The entropy and checksum are combined into a single bit stream, which is then split into 11-bit chunks.
+_The entropy and checksum are combined into a single bit stream, which is then split into 11-bit chunks.
 
 4. Mnemonic Phrase Generation
 
-Each 11-bit chunk is mapped to a word in the english.txt wordlist. The resulting words form the mnemonic phrase.
+_Each 11-bit chunk is mapped to a word in the english.txt wordlist. The resulting words form the mnemonic phrase.
 
 5. Seed Derivation
 
-The mnemonic phrase is converted into a seed using PBKDF2-HMAC-SHA512 with 2048 iterations. A passphrase can also be added (default is an empty string).
+_The mnemonic phrase is converted into a seed using PBKDF2-HMAC-SHA512 with 2048 iterations. A passphrase can also be added (default is an empty string).
 
 6. Bitcoin Key Derivation
 
-The seed is used to generate a master private key (xpriv). Using BIP-32, the program can derive child private keys for specific paths, e.g., m/44'/0'/0'/0/0.
+_The seed is used to generate a master private key (xpriv). Using BIP-32, the program can derive child private keys for specific paths, e.g., m/44'/0'/0'/0/0.
 
 ### Example Output
 
