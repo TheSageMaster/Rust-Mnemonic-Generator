@@ -1,3 +1,10 @@
+//  
+// Rust Project: Rust Mnemonic Generator
+// Author:  TheSageMaster
+// Date:  2025-01-13
+// Description:  A bip-39 mnemonic generator for rust 
+// 
+
 use bitcoin::secp256k1;
 use bitcoin::Network;
 use bitcoin::bip32::Xpriv;
