@@ -8,3 +8,6 @@ Added command line arguments
 [1.0.2]
 Added command line arguments
 - password (-p password)
+
+[1.0.3]
+Changed tests for 24 words and with password
