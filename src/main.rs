@@ -263,10 +263,9 @@ fn main() {
     );
     let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
 
-    let duration = start_time.elapsed(); // End timing
+    
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
-    eprintln!("Total Generation Time: {:?}", duration);
     if secured_password.is_empty() {
         eprintln!("-----------------------------------------------------------------");
         eprintln!("No Password Set. Not generating a secured seed");
@@ -288,8 +287,11 @@ fn main() {
         let (sec_xpriv, sec_private_key) = private_key_from_seed(secured_seed);
         eprintln!("Secured Extended Private Key: {}", sec_xpriv);
         eprintln!("Secured Bitcoin Private Key: {}", sec_private_key);
-        eprintln!("-----------------------------------------------------------------");
     }
+    let duration = start_time.elapsed(); // End timing
+    eprintln!("-----------------------------------------------------------------");
+    eprintln!("Total Generation Time: {:?}", duration);
+    eprintln!("-----------------------------------------------------------------");
 }
 
 #[cfg(test)]
@@ -308,16 +310,17 @@ mod tests {
     #[test]
     fn test_checksum_calculation() {
         // Example entropy and expected checksum
-        let entropy: [u8; 16] = [
-            0x8d, 0xdd, 0xe6, 0x80, 0xd9, 0x48, 0xf9, 0xe2, 0xcc, 0xde, 0x2f, 0xed, 0x90, 0x08,
-            0x96, 0x8e,
+        let entropy: [u8; 32] = [
+            0x25, 0xc9, 0x63, 0xfc, 0x2e, 0xcc, 0x64, 0x28, 0x41, 0xf2, 0x53, 0xd7, 0xca, 0x08,
+            0xae, 0x7b, 0x10, 0x91, 0x4f, 0x46, 0x95, 0xc6, 0x0a, 0x0c, 0xa8, 0x9b, 0xa6, 0x22,
+            0x2f, 0xf7, 0x72, 0xaf
         ];
         let (checksum_binary, _) = calculate_checksum(&entropy);
         assert_eq!(
             checksum_binary,
-            format!("{:b}", 0b1011),
+            format!("{:b}", 0b10011011),
             "Checksum must match the expected value"
-        );
+        ); 
     }
 
     /// Test that the mnemonic generated from entropy and checksum matches the expected mnemonic.
@@ -327,9 +330,10 @@ mod tests {
 
     #[test]
     fn test_mnemonic_generation() {
-        let entropy: [u8; 16] = [
-            0x8d, 0xdd, 0xe6, 0x80, 0xd9, 0x48, 0xf9, 0xe2, 0xcc, 0xde, 0x2f, 0xed, 0x90, 0x08,
-            0x96, 0x8e,
+        let entropy: [u8; 32] = [
+            0x25, 0xc9, 0x63, 0xfc, 0x2e, 0xcc, 0x64, 0x28, 0x41, 0xf2, 0x53, 0xd7, 0xca, 0x08,
+            0xae, 0x7b, 0x10, 0x91, 0x4f, 0x46, 0x95, 0xc6, 0x0a, 0x0c, 0xa8, 0x9b, 0xa6, 0x22,
+            0x2f, 0xf7, 0x72, 0xaf
         ];
         let (checksum_binary, checksum_bits) = calculate_checksum(&entropy);
         let bit_stream = bit_stream(&entropy, checksum_binary, checksum_bits);
@@ -339,8 +343,9 @@ mod tests {
         assert_eq!(
             mnemonic,
             vec![
-                "miss", "upset", "parent", "raw", "moon", "vapor", "cricket", "shine", "unique",
-                "leopard", "certain", "buddy"
+                "chair", "enrich", "yellow", "frown", "shock", "before", "amazing", "engine", "style",
+                "expect", "clog", "wage", "animal", "police", "bottom", "rhythm", "anxiety", "grab",
+                "cheap", "era", "carry", "wing", "skirt", "vibrant"
             ]
             .iter()
             .map(|s| s.to_string())
@@ -357,9 +362,22 @@ mod tests {
     #[test]
     fn test_seed_derivation() {
         let mnemonic =
-            "miss upset parent raw moon vapor cricket shine unique leopard certain buddy";
-        let seed = bip39_mnemonic_to_seed(mnemonic, "");
-        let expected_seed = hex::decode("8e22fce2b12535bbe0c8ad7cbe5bde60a917f4dd74fd5896b4522f016edeb4085c5c3cb0cc00a0970f3c260c9a22850e21f2d7ef9705bf2359943038370e1c06").unwrap();
+            "chair enrich yellow frown shock before amazing engine style expect clog wage animal police bottom rhythm anxiety grab cheap era carry wing skirt vibrant";
+        let seed = bip39_mnemonic_to_seed(mnemonic, "mnemonic");
+        let expected_seed = hex::decode("b9d54590734644b7374bcf6521ca8cf024803801ce44c21b467434d33008c41c07d40fa43495dfbfd0808054220eae00ea5d65ad12ea1506aeb50f2a3c7bce67").unwrap();
+        assert_eq!(
+            seed.to_vec(),
+            expected_seed,
+            "Derived seed must match expected value"
+        );
+    }
+
+    #[test]
+    fn test_seed_derivation_with_password() {
+        let mnemonic =
+            "chair enrich yellow frown shock before amazing engine style expect clog wage animal police bottom rhythm anxiety grab cheap era carry wing skirt vibrant";
+        let seed = bip39_mnemonic_to_seed(mnemonic, "testpassword");
+        let expected_seed = hex::decode("c4122c01c571201e41dedfd4659063da97c6512b73905d51560a1c4b5992e81ab29462bd491f912a15c1d13bc1899796204b8f5d4b5294e13920e9514ed3e272").unwrap();
         assert_eq!(
             seed.to_vec(),
             expected_seed,
