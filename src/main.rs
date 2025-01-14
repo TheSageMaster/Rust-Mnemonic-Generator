@@ -224,7 +224,11 @@ fn main() {
     let num_words = args.words;
     let basic_password = "mnemonic";
     let secured_password = args.password;
+    eprintln!("-----------------------------------------------------------------");
+    eprintln!("--------------- Rust Mnemonic Generator [v1.0.3] ----------------");
+    eprintln!("-----------------------------------------------------------------");
     println!("Number of words: {}", num_words);
+    eprintln!("-----------------------------------------------------------------");
 
     let entropy_bits = num_words * 11 - (num_words / 3);
     let entropy_bytes = entropy_bits / 8;
