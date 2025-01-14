@@ -5,6 +5,7 @@
 // Description:  A bip-39 mnemonic generator for rust
 //
 
+use clap::Parser;
 use bitcoin::Network;
 use bitcoin::bip32::DerivationPath;
 use bitcoin::bip32::Xpriv;
@@ -19,13 +20,21 @@ use sha2::{Digest, Sha256, Sha512};
 use std::fs;
 use std::str::FromStr;
 use std::time::Instant;
+use std::vec;
 pub type ExtendedPrivKey = Xpriv;
 pub type ExtendedPubKey = Xpub;
 pub type HmacSha512 = Hmac<Sha512>;
 
+#[derive(Parser, Debug)]
+struct Args {
+    /// Number of words to generate
+    #[arg(short, long, default_value_t = 12)]
+    words: usize,
+}
+
 /// Generates 128 bits of random entropy and prints it to the console.
-fn generate128bitentropy() -> [u8; 16] {
-    let mut entropy = [0u8; 16];
+fn generate_entropy(entropy_bytes: usize) -> Vec<u8> {
+    let mut entropy = vec![0u8; entropy_bytes];
     rand::thread_rng().fill_bytes(&mut entropy);
     println!(
         "Entropy: {}",
@@ -45,7 +54,7 @@ fn generate128bitentropy() -> [u8; 16] {
 /// # Returns
 /// A tuple containing the checksum as a binary string and the number of bits it occupies.
 ///
-fn calculate_checksum(entropy: [u8; 16]) -> (String, usize) {
+fn calculate_checksum(entropy: &[u8]) -> (String, usize) {
     let hash = Sha256::digest(&entropy);
     let checksum_bit_count = entropy.len() * 8 / 32;
     let checksum = (hash[0] >> (8 - checksum_bit_count)) & ((1 << checksum_bit_count) - 1);
@@ -62,9 +71,9 @@ fn calculate_checksum(entropy: [u8; 16]) -> (String, usize) {
 ///
 /// # Returns
 /// A vector of u8 representing the bit stream.
-fn bit_stream(entropy: [u8; 16], checksum_binary: String, checksum_bits: usize) -> Vec<u8> {
+fn bit_stream(entropy: &[u8], checksum_binary: String, checksum_bits: usize) -> Vec<u8> {
     let mut bit_stream = Vec::with_capacity((entropy.len() * 8) + checksum_bits);
-    for byte in &entropy {
+    for byte in entropy {
         for i in (0..8).rev() {
             bit_stream.push((byte >> i) & 1);
         }
@@ -188,10 +197,35 @@ fn private_key_from_seed(seed: [u8; 64]) -> (ExtendedPrivKey, PrivateKey) {
 /// 6. Convert mnemonic phrase to seed
 /// 7. Derive private key from seed
 fn main() {
+    // Added command line argument to specify number of words to generate
+    let args = Args::parse();
+
+    let num_words = args.words;
+    println!("Number of words: {}", num_words);
+
+    let entropy_bits = num_words * 11 - (num_words / 3);
+    let entropy_bytes = entropy_bits / 8;
+
+    if entropy_bits % 8 != 0 {
+        panic!("Entropy bits must be divisible by 8");
+    }
+
+    if entropy_bytes > 32 {
+        panic!("Entropy bytes must be less than or equal to 32");
+    }
+
+    if num_words < 12 || num_words > 24 {
+        panic!("Number of words must be between 12 and 24");
+    }
+
+    if num_words % 3 != 0 {
+        panic!("Number of words must be divisible by 3");
+    }
+
     let start_time = Instant::now(); // Start timing
-    let entropy = generate128bitentropy(); // Step 1: Generate Entropy
-    let (checksum_binary, checksum_bits) = calculate_checksum(entropy); // Step 2: Create Checksum
-    let bit_stream = bit_stream(entropy, checksum_binary, checksum_bits); // Step 3: Append Checksum to end of entropy
+    let entropy = generate_entropy(entropy_bytes); // Step 1: Generate Entropy
+    let (checksum_binary, checksum_bits) = calculate_checksum(&entropy); // Step 2: Create Checksum
+    let bit_stream = bit_stream(&entropy, checksum_binary, checksum_bits); // Step 3: Append Checksum to end of entropy
     let groups = split_bit_stream(bit_stream); // Step 4: Split Entropy into 11-bit groups
     let mnemonic_phrase = generate_mnemonic(groups); // Step 5: Generate Mnemonic Phrase
     let seed = bip39_mnemonic_to_seed(&mnemonic_phrase); // Step 6: Convert Mnemonic Phrase to Seed
@@ -210,7 +244,7 @@ mod tests {
     /// Tests that the generate128bitentropy function returns 16 bytes of entropy (128 bits).
     #[test]
     fn test_entropy_generation() {
-        let entropy = generate128bitentropy();
+        let entropy = generate_entropy(16);
         assert_eq!(entropy.len(), 16, "Entropy must be 128 bits (16 bytes)");
     }
 
@@ -223,7 +257,7 @@ mod tests {
             0x8d, 0xdd, 0xe6, 0x80, 0xd9, 0x48, 0xf9, 0xe2, 0xcc, 0xde, 0x2f, 0xed, 0x90, 0x08,
             0x96, 0x8e,
         ];
-        let (checksum_binary, _) = calculate_checksum(entropy);
+        let (checksum_binary, _) = calculate_checksum(&entropy);
         assert_eq!(
             checksum_binary,
             format!("{:b}", 0b1011),
@@ -242,8 +276,8 @@ mod tests {
             0x8d, 0xdd, 0xe6, 0x80, 0xd9, 0x48, 0xf9, 0xe2, 0xcc, 0xde, 0x2f, 0xed, 0x90, 0x08,
             0x96, 0x8e,
         ];
-        let (checksum_binary, checksum_bits) = calculate_checksum(entropy);
-        let bit_stream = bit_stream(entropy, checksum_binary, checksum_bits);
+        let (checksum_binary, checksum_bits) = calculate_checksum(&entropy);
+        let bit_stream = bit_stream(&entropy, checksum_binary, checksum_bits);
         let groups = split_bit_stream(bit_stream);
         let mnemonic = generate_mnemonic(groups);
 
