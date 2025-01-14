@@ -42,6 +42,10 @@ To run this project, you need:
    ```
    ./Rust-Mnemonic-Generator -w 21
    ```
+   or to specify a password for a secure bip39
+   ```
+   ./Rust-Mnemonic-Generator -p passsyword
+   ```
 
 ## How It Works
 
