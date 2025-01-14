@@ -5,13 +5,13 @@
 // Description:  A bip-39 mnemonic generator for rust
 //
 
-use clap::Parser;
 use bitcoin::Network;
 use bitcoin::bip32::DerivationPath;
 use bitcoin::bip32::Xpriv;
 use bitcoin::bip32::Xpub;
 use bitcoin::key::PrivateKey;
 use bitcoin::secp256k1;
+use clap::Parser;
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
 use rand::RngCore;
@@ -30,6 +30,9 @@ struct Args {
     /// Number of words to generate
     #[arg(short, long, default_value_t = 12)]
     words: usize,
+    /// Password to use for mnemonic security
+    #[arg(short, long, default_value_t = String::from(""))]
+    password: String,
 }
 
 /// Generates 128 bits of random entropy and prints it to the console.
@@ -37,7 +40,7 @@ fn generate_entropy(entropy_bytes: usize) -> Vec<u8> {
     let mut entropy = vec![0u8; entropy_bytes];
     rand::thread_rng().fill_bytes(&mut entropy);
     println!(
-        "Entropy: {}",
+        "Entropy (hex): {}",
         entropy
             .iter()
             .map(|b| format!("{:02x}", b))
@@ -53,12 +56,22 @@ fn generate_entropy(entropy_bytes: usize) -> Vec<u8> {
 ///
 /// # Returns
 /// A tuple containing the checksum as a binary string and the number of bits it occupies.
-///
 fn calculate_checksum(entropy: &[u8]) -> (String, usize) {
-    let hash = Sha256::digest(&entropy);
-    let checksum_bit_count = entropy.len() * 8 / 32;
-    let checksum = (hash[0] >> (8 - checksum_bit_count)) & ((1 << checksum_bit_count) - 1);
-    let checksum_binary = format!("{:0width$b}", checksum, width = checksum_bit_count);
+    let hash = Sha256::digest(entropy);
+    let checksum_bit_count = entropy.len() * 8 / 32; // Number of checksum bits (entropy bits / 32)
+
+    // Convert the first byte(s) of the hash to binary and take the leftmost checksum_bit_count bits
+    let checksum_binary: String = hash
+        .iter()
+        .flat_map(|byte| format!("{:08b}", byte).chars().collect::<Vec<char>>()) // Convert hash to binary string
+        .take(checksum_bit_count) // Take only the required number of bits
+        .collect();
+    assert_eq!(
+        checksum_binary.len(),
+        checksum_bit_count,
+        "Checksum binary length mismatch"
+    );
+
     (checksum_binary, checksum_bit_count)
 }
 
@@ -81,6 +94,16 @@ fn bit_stream(entropy: &[u8], checksum_binary: String, checksum_bits: usize) -> 
     for bit in checksum_binary.chars() {
         bit_stream.push(bit.to_digit(10).unwrap() as u8);
     }
+    assert_eq!(
+        bit_stream.len(),
+        entropy.len() * 8 + checksum_bits,
+        "Bit stream length mismatch"
+    );
+    assert_eq!(
+        bit_stream.len() % 11,
+        0,
+        "Bit stream length should be a multiple of 11"
+    );
     bit_stream
 }
 
@@ -100,6 +123,10 @@ fn split_bit_stream(bit_stream: Vec<u8>) -> Vec<u16> {
         .chunks(11)
         .map(|chunk| chunk.iter().fold(0, |acc, &bit| (acc << 1) | bit as u16))
         .collect();
+    assert_eq!(groups.len() * 11, bit_stream.len());
+    assert_eq!(groups.len(), bit_stream.len() / 11);
+    assert_eq!(bit_stream.len() % 11, 0);
+    assert_eq!(bit_stream.len() / 11, groups.len());
     groups
 }
 
@@ -128,7 +155,9 @@ fn generate_mnemonic(groups: Vec<u16>) -> String {
         .map(|s| *s)
         .collect();
     let mnemonic_phrase = mnemonic.join(" ");
+    println!("-----------------------------------------------------------------");
     println!("Mnemonic: {}", mnemonic_phrase);
+    println!("-----------------------------------------------------------------");
     mnemonic_phrase
 }
 
@@ -143,24 +172,17 @@ fn generate_mnemonic(groups: Vec<u16>) -> String {
 /// # Notes
 /// - The passphrase is the BIP-39 standard prefix for passphrase, which is "mnemonic".
 /// - The PBKDF2 iteration count is 2048.
-fn bip39_mnemonic_to_seed(mnemonic_phrase: &str) -> [u8; 64] {
-    let passphrase = "mnemonic"; // BIP-39 standard prefix for passphrase
-    let mut hmac =
-        HmacSha512::new_from_slice(passphrase.as_bytes()).expect("HMAC can take key of any size");
+fn bip39_mnemonic_to_seed(mnemonic_phrase: &str, mnemonic_passphrase: &str) -> [u8; 64] {
+    let mnemonic_passphrase = format!("{}{}", "mnemonic", mnemonic_passphrase);
+    let mut hmac = HmacSha512::new_from_slice(mnemonic_passphrase.as_bytes())
+        .expect("HMAC can take key of any size");
     hmac.update(mnemonic_phrase.as_bytes());
     let mut seed = [0u8; 64];
     let _ = pbkdf2::<HmacSha512>(
         mnemonic_phrase.as_bytes(),
-        passphrase.as_bytes(),
+        mnemonic_passphrase.as_bytes(),
         2048,
         &mut seed,
-    );
-    println!(
-        "Seed: {}",
-        seed.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<String>>()
-            .join("")
     );
     seed
 }
@@ -172,7 +194,6 @@ fn bip39_mnemonic_to_seed(mnemonic_phrase: &str) -> [u8; 64] {
 ///
 /// # Returns
 /// A tuple containing the Extended Private Key and derived private key.
-///
 fn private_key_from_seed(seed: [u8; 64]) -> (ExtendedPrivKey, PrivateKey) {
     let secp = Secp256k1::new();
     let network = Network::Bitcoin;
@@ -201,6 +222,8 @@ fn main() {
     let args = Args::parse();
 
     let num_words = args.words;
+    let basic_password = "mnemonic";
+    let secured_password = args.password;
     println!("Number of words: {}", num_words);
 
     let entropy_bits = num_words * 11 - (num_words / 3);
@@ -214,7 +237,7 @@ fn main() {
         panic!("Entropy bytes must be less than or equal to 32");
     }
 
-    if num_words < 12 || num_words > 24 {
+    if !(12..=24).contains(&num_words) {
         panic!("Number of words must be between 12 and 24");
     }
 
@@ -228,13 +251,45 @@ fn main() {
     let bit_stream = bit_stream(&entropy, checksum_binary, checksum_bits); // Step 3: Append Checksum to end of entropy
     let groups = split_bit_stream(bit_stream); // Step 4: Split Entropy into 11-bit groups
     let mnemonic_phrase = generate_mnemonic(groups); // Step 5: Generate Mnemonic Phrase
-    let seed = bip39_mnemonic_to_seed(&mnemonic_phrase); // Step 6: Convert Mnemonic Phrase to Seed
-    let (xpriv, private_key) = private_key_from_seed(seed); // Step 7: Derive Private Key
+    eprintln!("Phase 1 - BIP39 Unsecured (without Passphrase):");
+    let unsecured_seed = bip39_mnemonic_to_seed(&mnemonic_phrase, basic_password); // Step 6: Convert Mnemonic Phrase to Seed
+    eprintln!(
+        "Unsecured Seed: {}",
+        unsecured_seed
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<Vec<String>>()
+            .join("")
+    );
+    let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
 
     let duration = start_time.elapsed(); // End timing
-    println!("Extended Private Key: {}", xpriv);
-    println!("Bitcoin Private Key: {}", private_key);
-    println!("Total Generation Time: {:?}", duration);
+    eprintln!("Extended Private Key: {}", xpriv);
+    eprintln!("Bitcoin Private Key: {}", private_key);
+    eprintln!("Total Generation Time: {:?}", duration);
+    if secured_password.is_empty() {
+        eprintln!("-----------------------------------------------------------------");
+        eprintln!("No Password Set. Not generating a secured seed");
+    } else {
+        eprintln!("-----------------------------------------------------------------");
+        eprintln!(
+            "Phase 2 - BIP39 Secured (with Passphrase: {})",
+            secured_password
+        );
+        let secured_seed = bip39_mnemonic_to_seed(&mnemonic_phrase, &secured_password);
+        eprintln!(
+            "Secured Seed: {}",
+            secured_seed
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<String>>()
+                .join("")
+        );
+        let (sec_xpriv, sec_private_key) = private_key_from_seed(secured_seed);
+        eprintln!("Secured Extended Private Key: {}", sec_xpriv);
+        eprintln!("Secured Bitcoin Private Key: {}", sec_private_key);
+        eprintln!("-----------------------------------------------------------------");
+    }
 }
 
 #[cfg(test)]
@@ -303,7 +358,7 @@ mod tests {
     fn test_seed_derivation() {
         let mnemonic =
             "miss upset parent raw moon vapor cricket shine unique leopard certain buddy";
-        let seed = bip39_mnemonic_to_seed(mnemonic);
+        let seed = bip39_mnemonic_to_seed(mnemonic, "");
         let expected_seed = hex::decode("8e22fce2b12535bbe0c8ad7cbe5bde60a917f4dd74fd5896b4522f016edeb4085c5c3cb0cc00a0970f3c260c9a22850e21f2d7ef9705bf2359943038370e1c06").unwrap();
         assert_eq!(
             seed.to_vec(),
