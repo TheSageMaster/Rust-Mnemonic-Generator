@@ -38,6 +38,10 @@ To run this project, you need:
    ```
    ./Rust-Mnemonic-Generator
    ```
+   or to specify the number of words to generate:
+   ```
+   ./Rust-Mnemonic-Generator -w 21
+   ```
 
 ## How It Works
 
