@@ -18,6 +18,7 @@ A Rust-based implementation for generating BIP-39 mnemonics, converting them int
 To run this project, you need:
 
 - Rust and Cargo installed ([Install Rust](https://www.rust-lang.org/tools/install))
+- If rust is previously installed, please run a 'rustup update' command
 - The `english.txt` file containing the official BIP-39 wordlist ([BIP-39 Wordlist](https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt))
 
 ### Installation
@@ -42,9 +43,9 @@ To run this project, you need:
    ```
    ./Rust-Mnemonic-Generator -w 21
    ```
-   or to specify a password for a secure bip39
+   help can be displayed:
    ```
-   ./Rust-Mnemonic-Generator -p passsyword
+   ./Rust-Menmonic-Generator -h
    ```
 
 ## How It Works
@@ -72,16 +73,38 @@ To run this project, you need:
 6. Bitcoin Key Derivation
 
    - The seed is used to generate a master private key (xpriv). Using BIP-32, the program can derive child private keys for specific paths, e.g., m/44'/0'/0'/0/0.
+   - Derivation path will be added a command line argument in the future
+
+7. Bitcoin Address generation
+
+   - Step 1: Apply SHA-256 hashing on the compressed public key.
+   - Step 2: Apply RIPEMD-160 hashing on the result of the SHA-256.
+   - Step 3: Add the version byte (0x00 for Bitcoin mainnet).
+   - Step 4: Perform double SHA-256 on the extended result (version byte + RIPEMD-160 hash).
+   - Step 5: Take the first 4 bytes of the double SHA-256 result as the checksum.
+   - Step 6: Append the checksum to the result from Step 3.
+   - Step 7: Base58 encode the result of Step 6.
 
 ### Example Output
 
 ```
-Entropy: 8bbf9deade037ba27ac2d8e16f7cfa7d
-Mnemonic: menu bicycle sort wool theory prefer measure february install disease dirt good ability
-Seed: 2d54258d147fb594dd7ef5a416f432ae219da8f0da8ee7d0ce451e10fda0c635ceda594b6213da794ec6787c8bd4cf9437ab3246ac698cc9ced4a36ae6042f66
-Extended Private Key: xprv9s21ZrQH143K4TC62fybTm7NPrVXP69z3MykR8aGP5nvgz7z5L266EnxqtkqLnQr3DS8a4XfP3Xs1bguSnRNgUdEUa6Kvr7Jm274EcSqHi7
-Bitcoin Private Key: L1qYVuTvaMSpnXfEm271HTvBdPhcxQWUmAp1Ep4nTKLJWQYgXQyg
-Total Generation Time: 2.8ms
+-----------------------------------------------------------------
+--------------- Rust Mnemonic Generator [v1.0.4] ----------------
+-----------------------------------------------------------------
+Number of words: 24
+-----------------------------------------------------------------
+Entropy (hex): 10228fd78f13af10a487f0f2b2d7e763d27d3e60fc4ec4962f2d23a616feb2b9
+-----------------------------------------------------------------
+Mnemonic: awake behave vote bullet depend marriage must wrap verify note what sibling chief palace loop mean setup ramp slender elder gesture leg slab cattle
+-----------------------------------------------------------------
+Seed: 27552d9cae9d645b1b0a0cf45cc3325e58edc1f8a7f8044f934ef8aeb8249cd46391f71baf04fdd30c3c43c1a5ca93305147d05679eb28fe5be543717203c42b
+Extended Private Key: xprv9s21ZrQH143K2mbfwKRdBbbUzRQkeoc1qg3K97tUZDGSu3jbjoaG4Jjm54oZHhhJe4W8MApTm9UQokyXbNX9vf2CEgy38fFYE4G98bNATxN
+Bitcoin Private Key: KzkAHnM7mtoWsiDznSJ8BkDga7CYU8s5hyA6wzfVF2x9B55RjEaP
+Compressed Public Key: 0260ecf665907662f548cc26e3b0dbc4493a10e35d2b49a0af93b96e0a363f8729
+Address: 134LiGXL2jUZ9Vy3rkUobgotnmjDGrWng4
+-----------------------------------------------------------------
+Total Generation Time: 1.901923ms
+-----------------------------------------------------------------
 ```
 
 ### Dependencies
@@ -98,20 +121,25 @@ The following dependencies are required in your Cargo.toml file:
 
 ```
 [dependencies]
-rand = "0.8"
-sha2 = "0.10"
-sha3 = "0.10"
-hmac ={ version = "0.12.1", features = ["std"] }
-bitcoin = "0.32.5"
-secp256k1 = "0.30.0"
-pbkdf2 = "0.12.2"
+bs58 = '0.5.1'
+num-bigint = "0.4.6"
+num-traits = "0.2.15"
+num-integer = "0.1.46"
+rand = '0.9.0'
+sha2 = '0.10'
+sha3 = '0.10'
+ripemd = '0.1.3'
+hmac ={ version = '0.12.1', features = ['std'] }
+bitcoin = '0.32.5'
+secp256k1 = '0.30.0'
+pbkdf2 = '0.12.2'
+hex = '0.4.3'
+clap = { version = '4.0.29', features = ['derive'] }
 ```
 
 ### Customization
 
 Modify the derivation path (m/44'/0'/0'/0/0) to suit different use cases or standards.
-
-Add a passphrase for mnemonic-to-seed conversion for enhanced security.
 
 ### Contributing
 

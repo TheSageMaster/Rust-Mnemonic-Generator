@@ -1,7 +1,7 @@
 //
 // Rust Project: Rust Mnemonic Generator
 // Author:  TheSageMaster
-// Date:  2025-01-13
+// Date:  2025-04-10
 // Description:  A bip-39 mnemonic generator for rust
 //
 
@@ -13,9 +13,11 @@ use bitcoin::key::PrivateKey;
 use bitcoin::secp256k1;
 use clap::Parser;
 use hmac::{Hmac, Mac};
+use bs58::encode;
 use pbkdf2::pbkdf2;
 use rand::RngCore;
-use secp256k1::Secp256k1;
+use ripemd::Ripemd160;
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256, Sha512};
 use std::fs;
 use std::str::FromStr;
@@ -38,7 +40,8 @@ struct Args {
 /// Generates 128 bits of random entropy and prints it to the console.
 fn generate_entropy(entropy_bytes: usize) -> Vec<u8> {
     let mut entropy = vec![0u8; entropy_bytes];
-    rand::thread_rng().fill_bytes(&mut entropy);
+    let mut rng = rand::rngs::ThreadRng::default();
+    rng.fill_bytes(&mut entropy);
     println!(
         "Entropy (hex): {}",
         entropy
@@ -208,6 +211,54 @@ fn private_key_from_seed(seed: [u8; 64]) -> (ExtendedPrivKey, PrivateKey) {
     (xpriv, private_key) // Return both Extended Private Key and private_key
 }
 
+/// Converts a PrivateKey to a compressed public key.
+///
+/// # Parameters
+/// - `private_key`: A PrivateKey
+///
+/// # Returns
+/// A vector of 33 bytes representing the compressed public key, or an error string if the private key is invalid.
+///
+/// # Notes
+/// - The public key is generated using the Secp256k1 library.
+/// - The public key is serialized in compressed form.
+fn generate_public_key(private_key: &PrivateKey) -> Result<Vec<u8>, String> {
+    // Step 1: Decode the hex private key to bytes
+    let private_key_bytes = private_key.to_bytes();
+
+    // Step 2: Create a SecretKey from bytes
+    let secret_key = SecretKey::from_slice(&private_key_bytes)
+        .map_err(|e| format!("Invalid private key: {}", e))?;
+
+    // Step 3: Generate the public key using Secp256k1
+    let secp = Secp256k1::new();
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+
+    // Step 4: Serialize it in compressed form
+    let compressed = public_key.serialize(); // [u8; 33]
+
+    Ok(compressed.to_vec())
+}
+
+/// Generates a Bitcoin address from a given public key.
+///
+/// # Parameters
+/// - `public_key`: A compressed public key (33 bytes)
+///
+/// # Returns
+/// A Bitcoin address as a string, or an error message if the input is invalid.
+///
+/// # Notes
+/// - The address is generated using the standard Bitcoin address format.
+/// - The address is encoded in base58check.
+fn generate_address(public_key: Vec<u8>) -> Result<String, String> {
+    let stage1 = Sha256::digest(&public_key);
+    let stage2 = Ripemd160::digest(&stage1);
+    let versioned_payload = [&[0x00], &stage2[..]].concat();
+    let checksum = &Sha256::digest(&Sha256::digest(&versioned_payload))[0..4];
+    let address_bytes = [&versioned_payload[..], checksum].concat();
+    Ok(encode(address_bytes).into_string())
+}
 /// Main function for generating a BIP-39 mnemonic and converting it to a Bitcoin private key.
 ///
 /// 1. Generate entropy
@@ -222,10 +273,8 @@ fn main() {
     let args = Args::parse();
 
     let num_words = args.words;
-    let basic_password = "mnemonic";
-    let secured_password = args.password;
     eprintln!("-----------------------------------------------------------------");
-    eprintln!("--------------- Rust Mnemonic Generator [v1.0.3] ----------------");
+    eprintln!("--------------- Rust Mnemonic Generator [v1.0.4] ----------------");
     eprintln!("-----------------------------------------------------------------");
     println!("Number of words: {}", num_words);
     eprintln!("-----------------------------------------------------------------");
@@ -255,10 +304,9 @@ fn main() {
     let bit_stream = bit_stream(&entropy, checksum_binary, checksum_bits); // Step 3: Append Checksum to end of entropy
     let groups = split_bit_stream(bit_stream); // Step 4: Split Entropy into 11-bit groups
     let mnemonic_phrase = generate_mnemonic(groups); // Step 5: Generate Mnemonic Phrase
-    eprintln!("Phase 1 - BIP39 Unsecured (without Passphrase):");
-    let unsecured_seed = bip39_mnemonic_to_seed(&mnemonic_phrase, basic_password); // Step 6: Convert Mnemonic Phrase to Seed
+    let unsecured_seed = bip39_mnemonic_to_seed(&mnemonic_phrase, ""); // Step 6: Convert Mnemonic Phrase to Seed
     eprintln!(
-        "Unsecured Seed: {}",
+        "Seed: {}",
         unsecured_seed
             .iter()
             .map(|b| format!("{:02x}", b))
@@ -266,31 +314,15 @@ fn main() {
             .join("")
     );
     let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
+    let compressed_public_key =
+        generate_public_key(&private_key).expect("Failed to generate public key");
+    let address = generate_address(compressed_public_key.clone()).expect("Failed to generate address");
 
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
-    if secured_password.is_empty() {
-        eprintln!("-----------------------------------------------------------------");
-        eprintln!("No Password Set. Not generating a secured seed");
-    } else {
-        eprintln!("-----------------------------------------------------------------");
-        eprintln!(
-            "Phase 2 - BIP39 Secured (with Passphrase: {})",
-            secured_password
-        );
-        let secured_seed = bip39_mnemonic_to_seed(&mnemonic_phrase, &secured_password);
-        eprintln!(
-            "Secured Seed: {}",
-            secured_seed
-                .iter()
-                .map(|b| format!("{:02x}", b))
-                .collect::<Vec<String>>()
-                .join("")
-        );
-        let (sec_xpriv, sec_private_key) = private_key_from_seed(secured_seed);
-        eprintln!("Secured Extended Private Key: {}", sec_xpriv);
-        eprintln!("Secured Bitcoin Private Key: {}", sec_private_key);
-    }
+    eprintln!("Compressed Public Key: {}",hex::encode(compressed_public_key));
+    eprintln!("Address: {}", address);
+
     let duration = start_time.elapsed(); // End timing
     eprintln!("-----------------------------------------------------------------");
     eprintln!("Total Generation Time: {:?}", duration);
@@ -367,18 +399,6 @@ mod tests {
         let mnemonic = "chair enrich yellow frown shock before amazing engine style expect clog wage animal police bottom rhythm anxiety grab cheap era carry wing skirt vibrant";
         let seed = bip39_mnemonic_to_seed(mnemonic, "mnemonic");
         let expected_seed = hex::decode("b9d54590734644b7374bcf6521ca8cf024803801ce44c21b467434d33008c41c07d40fa43495dfbfd0808054220eae00ea5d65ad12ea1506aeb50f2a3c7bce67").unwrap();
-        assert_eq!(
-            seed.to_vec(),
-            expected_seed,
-            "Derived seed must match expected value"
-        );
-    }
-
-    #[test]
-    fn test_seed_derivation_with_password() {
-        let mnemonic = "chair enrich yellow frown shock before amazing engine style expect clog wage animal police bottom rhythm anxiety grab cheap era carry wing skirt vibrant";
-        let seed = bip39_mnemonic_to_seed(mnemonic, "testpassword");
-        let expected_seed = hex::decode("c4122c01c571201e41dedfd4659063da97c6512b73905d51560a1c4b5992e81ab29462bd491f912a15c1d13bc1899796204b8f5d4b5294e13920e9514ed3e272").unwrap();
         assert_eq!(
             seed.to_vec(),
             expected_seed,

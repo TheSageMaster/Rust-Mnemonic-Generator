@@ -11,3 +11,10 @@ Added command line arguments
 
 [1.0.3]
 Changed tests for 24 words and with password
+
+[1.0.4]
+Removed secured BIP39 **May be added back at a later date**
+thread_rng was depreceated, code was revised for new rand::rngs::ThreadRng::default();
+Added compressed public key and address generation
+Removed unused code
+Removed unused tests
