@@ -10,9 +10,9 @@ use bitcoin::bip32::DerivationPath;
 use bitcoin::bip32::Xpriv;
 use bitcoin::key::PrivateKey;
 use bitcoin::secp256k1;
+use bs58::encode;
 use clap::Parser;
 use hmac::{Hmac, Mac};
-use bs58::encode;
 use pbkdf2::pbkdf2;
 use rand::RngCore;
 use ripemd::Ripemd160;
@@ -25,10 +25,23 @@ use std::vec;
 pub type ExtendedPrivKey = Xpriv;
 pub type HmacSha512 = Hmac<Sha512>;
 
+fn parse_word_count(s: &str) -> Result<usize, String> {
+    let value = s
+        .parse::<usize>()
+        .map_err(|_| String::from("Number of words must be a positive integer"))?;
+    if !(12..=24).contains(&value) {
+        return Err(String::from("Number of words must be between 12 and 24"));
+    }
+    if value % 3 != 0 {
+        return Err(String::from("Number of words must be divisible by 3"));
+    }
+    Ok(value)
+}
+
 #[derive(Parser, Debug)]
 struct Args {
     /// Number of words to generate
-    #[arg(short, long, default_value_t = 12)]
+    #[arg(short, long, default_value_t = 12, value_parser = parse_word_count)]
     words: usize,
     /// Password to use for mnemonic security
     #[arg(short, long, default_value_t = String::from(""))]
@@ -281,19 +294,13 @@ fn main() {
     let entropy_bytes = entropy_bits / 8;
 
     if entropy_bits % 8 != 0 {
-        panic!("Entropy bits must be divisible by 8");
+        eprintln!("Error: Entropy bits must be divisible by 8");
+        std::process::exit(1);
     }
 
     if entropy_bytes > 32 {
-        panic!("Entropy bytes must be less than or equal to 32");
-    }
-
-    if !(12..=24).contains(&num_words) {
-        panic!("Number of words must be between 12 and 24");
-    }
-
-    if num_words % 3 != 0 {
-        panic!("Number of words must be divisible by 3");
+        eprintln!("Error: Entropy bytes must be less than or equal to 32");
+        std::process::exit(1);
     }
 
     let start_time = Instant::now(); // Start timing
@@ -314,11 +321,15 @@ fn main() {
     let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
     let compressed_public_key =
         generate_public_key(&private_key).expect("Failed to generate public key");
-    let address = generate_address(compressed_public_key.clone()).expect("Failed to generate address");
+    let address =
+        generate_address(compressed_public_key.clone()).expect("Failed to generate address");
 
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
-    eprintln!("Compressed Public Key: {}",hex::encode(compressed_public_key));
+    eprintln!(
+        "Compressed Public Key: {}",
+        hex::encode(compressed_public_key)
+    );
     eprintln!("Address: {}", address);
 
     let duration = start_time.elapsed(); // End timing
