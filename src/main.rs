@@ -8,7 +8,6 @@
 use bitcoin::Network;
 use bitcoin::bip32::DerivationPath;
 use bitcoin::bip32::Xpriv;
-use bitcoin::bip32::Xpub;
 use bitcoin::key::PrivateKey;
 use bitcoin::secp256k1;
 use clap::Parser;
@@ -24,7 +23,6 @@ use std::str::FromStr;
 use std::time::Instant;
 use std::vec;
 pub type ExtendedPrivKey = Xpriv;
-pub type ExtendedPubKey = Xpub;
 pub type HmacSha512 = Hmac<Sha512>;
 
 #[derive(Parser, Debug)]
