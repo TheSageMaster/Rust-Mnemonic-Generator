@@ -8,12 +8,11 @@
 use bitcoin::Network;
 use bitcoin::bip32::DerivationPath;
 use bitcoin::bip32::Xpriv;
-use bitcoin::bip32::Xpub;
 use bitcoin::key::PrivateKey;
 use bitcoin::secp256k1;
+use bs58::encode;
 use clap::Parser;
 use hmac::{Hmac, Mac};
-use bs58::encode;
 use pbkdf2::pbkdf2;
 use rand::RngCore;
 use ripemd::Ripemd160;
@@ -24,13 +23,25 @@ use std::str::FromStr;
 use std::time::Instant;
 use std::vec;
 pub type ExtendedPrivKey = Xpriv;
-pub type ExtendedPubKey = Xpub;
 pub type HmacSha512 = Hmac<Sha512>;
+
+fn parse_word_count(s: &str) -> Result<usize, String> {
+    let value = s
+        .parse::<usize>()
+        .map_err(|_| String::from("Number of words must be a positive integer"))?;
+    if !(12..=24).contains(&value) {
+        return Err(String::from("Number of words must be between 12 and 24"));
+    }
+    if value % 3 != 0 {
+        return Err(String::from("Number of words must be divisible by 3"));
+    }
+    Ok(value)
+}
 
 #[derive(Parser, Debug)]
 struct Args {
     /// Number of words to generate
-    #[arg(short, long, default_value_t = 12)]
+    #[arg(short, long, default_value_t = 12, value_parser = parse_word_count)]
     words: usize,
     /// Password to use for mnemonic security
     #[arg(short, long, default_value_t = String::from(""))]
@@ -122,15 +133,14 @@ fn bit_stream(entropy: &[u8], checksum_binary: String, checksum_bits: usize) -> 
 /// This function assumes that the length of `bit_stream` is a multiple of 11. If the length is
 /// not a multiple of 11, the behavior is not defined.
 fn split_bit_stream(bit_stream: Vec<u8>) -> Vec<u16> {
-    let groups: Vec<u16> = bit_stream
+    debug_assert!(
+        bit_stream.len() % 11 == 0,
+        "Bit stream length should be a multiple of 11"
+    );
+    bit_stream
         .chunks(11)
         .map(|chunk| chunk.iter().fold(0, |acc, &bit| (acc << 1) | bit as u16))
-        .collect();
-    assert_eq!(groups.len() * 11, bit_stream.len());
-    assert_eq!(groups.len(), bit_stream.len() / 11);
-    assert_eq!(bit_stream.len() % 11, 0);
-    assert_eq!(bit_stream.len() / 11, groups.len());
-    groups
+        .collect()
 }
 
 /// Generates a BIP-39 mnemonic phrase from a vector of 11-bit indices.
@@ -283,19 +293,13 @@ fn main() {
     let entropy_bytes = entropy_bits / 8;
 
     if entropy_bits % 8 != 0 {
-        panic!("Entropy bits must be divisible by 8");
+        eprintln!("Error: Entropy bits must be divisible by 8");
+        std::process::exit(1);
     }
 
     if entropy_bytes > 32 {
-        panic!("Entropy bytes must be less than or equal to 32");
-    }
-
-    if !(12..=24).contains(&num_words) {
-        panic!("Number of words must be between 12 and 24");
-    }
-
-    if num_words % 3 != 0 {
-        panic!("Number of words must be divisible by 3");
+        eprintln!("Error: Entropy bytes must be less than or equal to 32");
+        std::process::exit(1);
     }
 
     let start_time = Instant::now(); // Start timing
@@ -320,7 +324,10 @@ fn main() {
 
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
-    eprintln!("Compressed Public Key: {}",hex::encode(compressed_public_key));
+    eprintln!(
+        "Compressed Public Key: {}",
+        hex::encode(compressed_public_key)
+    );
     eprintln!("Address: {}", address);
 
     let duration = start_time.elapsed(); // End timing
