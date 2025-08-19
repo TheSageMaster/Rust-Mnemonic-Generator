@@ -11,9 +11,9 @@ use bitcoin::bip32::Xpriv;
 use bitcoin::bip32::Xpub;
 use bitcoin::key::PrivateKey;
 use bitcoin::secp256k1;
+use bs58::encode;
 use clap::Parser;
 use hmac::{Hmac, Mac};
-use bs58::encode;
 use pbkdf2::pbkdf2;
 use rand::RngCore;
 use ripemd::Ripemd160;
@@ -122,15 +122,14 @@ fn bit_stream(entropy: &[u8], checksum_binary: String, checksum_bits: usize) -> 
 /// This function assumes that the length of `bit_stream` is a multiple of 11. If the length is
 /// not a multiple of 11, the behavior is not defined.
 fn split_bit_stream(bit_stream: Vec<u8>) -> Vec<u16> {
-    let groups: Vec<u16> = bit_stream
+    debug_assert!(
+        bit_stream.len() % 11 == 0,
+        "Bit stream length should be a multiple of 11"
+    );
+    bit_stream
         .chunks(11)
         .map(|chunk| chunk.iter().fold(0, |acc, &bit| (acc << 1) | bit as u16))
-        .collect();
-    assert_eq!(groups.len() * 11, bit_stream.len());
-    assert_eq!(groups.len(), bit_stream.len() / 11);
-    assert_eq!(bit_stream.len() % 11, 0);
-    assert_eq!(bit_stream.len() / 11, groups.len());
-    groups
+        .collect()
 }
 
 /// Generates a BIP-39 mnemonic phrase from a vector of 11-bit indices.
@@ -316,11 +315,15 @@ fn main() {
     let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
     let compressed_public_key =
         generate_public_key(&private_key).expect("Failed to generate public key");
-    let address = generate_address(compressed_public_key.clone()).expect("Failed to generate address");
+    let address =
+        generate_address(compressed_public_key.clone()).expect("Failed to generate address");
 
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
-    eprintln!("Compressed Public Key: {}",hex::encode(compressed_public_key));
+    eprintln!(
+        "Compressed Public Key: {}",
+        hex::encode(compressed_public_key)
+    );
     eprintln!("Address: {}", address);
 
     let duration = start_time.elapsed(); // End timing
