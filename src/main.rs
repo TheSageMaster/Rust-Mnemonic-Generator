@@ -133,15 +133,14 @@ fn bit_stream(entropy: &[u8], checksum_binary: String, checksum_bits: usize) -> 
 /// This function assumes that the length of `bit_stream` is a multiple of 11. If the length is
 /// not a multiple of 11, the behavior is not defined.
 fn split_bit_stream(bit_stream: Vec<u8>) -> Vec<u16> {
-    let groups: Vec<u16> = bit_stream
+    debug_assert!(
+        bit_stream.len() % 11 == 0,
+        "Bit stream length should be a multiple of 11"
+    );
+    bit_stream
         .chunks(11)
         .map(|chunk| chunk.iter().fold(0, |acc, &bit| (acc << 1) | bit as u16))
-        .collect();
-    assert_eq!(groups.len() * 11, bit_stream.len());
-    assert_eq!(groups.len(), bit_stream.len() / 11);
-    assert_eq!(bit_stream.len() % 11, 0);
-    assert_eq!(bit_stream.len() / 11, groups.len());
-    groups
+        .collect()
 }
 
 /// Generates a BIP-39 mnemonic phrase from a vector of 11-bit indices.
