@@ -243,7 +243,7 @@ fn generate_public_key(private_key: &PrivateKey) -> Result<Vec<u8>, String> {
 /// Generates a Bitcoin address from a given public key.
 ///
 /// # Parameters
-/// - `public_key`: A compressed public key (33 bytes)
+/// - `public_key`: A compressed public key slice (33 bytes)
 ///
 /// # Returns
 /// A Bitcoin address as a string, or an error message if the input is invalid.
@@ -251,8 +251,8 @@ fn generate_public_key(private_key: &PrivateKey) -> Result<Vec<u8>, String> {
 /// # Notes
 /// - The address is generated using the standard Bitcoin address format.
 /// - The address is encoded in base58check.
-fn generate_address(public_key: Vec<u8>) -> Result<String, String> {
-    let stage1 = Sha256::digest(&public_key);
+fn generate_address(public_key: &[u8]) -> Result<String, String> {
+    let stage1 = Sha256::digest(public_key);
     let stage2 = Ripemd160::digest(&stage1);
     let versioned_payload = [&[0x00], &stage2[..]].concat();
     let checksum = &Sha256::digest(&Sha256::digest(&versioned_payload))[0..4];
@@ -316,7 +316,7 @@ fn main() {
     let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
     let compressed_public_key =
         generate_public_key(&private_key).expect("Failed to generate public key");
-    let address = generate_address(compressed_public_key.clone()).expect("Failed to generate address");
+    let address = generate_address(&compressed_public_key).expect("Failed to generate address");
 
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
