@@ -227,12 +227,12 @@ fn private_key_from_seed(seed: [u8; 64]) -> (ExtendedPrivKey, PrivateKey) {
 /// - `private_key`: A PrivateKey
 ///
 /// # Returns
-/// A vector of 33 bytes representing the compressed public key, or an error string if the private key is invalid.
+/// A 33-byte array representing the compressed public key, or an error string if the private key is invalid.
 ///
 /// # Notes
 /// - The public key is generated using the Secp256k1 library.
 /// - The public key is serialized in compressed form.
-fn generate_public_key(private_key: &PrivateKey) -> Result<Vec<u8>, String> {
+fn generate_public_key(private_key: &PrivateKey) -> Result<[u8; 33], String> {
     // Step 1: Decode the hex private key to bytes
     let private_key_bytes = private_key.to_bytes();
 
@@ -247,13 +247,13 @@ fn generate_public_key(private_key: &PrivateKey) -> Result<Vec<u8>, String> {
     // Step 4: Serialize it in compressed form
     let compressed = public_key.serialize(); // [u8; 33]
 
-    Ok(compressed.to_vec())
+    Ok(compressed)
 }
 
 /// Generates a Bitcoin address from a given public key.
 ///
 /// # Parameters
-/// - `public_key`: A compressed public key (33 bytes)
+/// - `public_key`: A compressed public key slice (33 bytes)
 ///
 /// # Returns
 /// A Bitcoin address as a string, or an error message if the input is invalid.
@@ -261,8 +261,8 @@ fn generate_public_key(private_key: &PrivateKey) -> Result<Vec<u8>, String> {
 /// # Notes
 /// - The address is generated using the standard Bitcoin address format.
 /// - The address is encoded in base58check.
-fn generate_address(public_key: Vec<u8>) -> Result<String, String> {
-    let stage1 = Sha256::digest(&public_key);
+fn generate_address(public_key: &[u8]) -> Result<String, String> {
+    let stage1 = Sha256::digest(public_key);
     let stage2 = Ripemd160::digest(&stage1);
     let versioned_payload = [&[0x00], &stage2[..]].concat();
     let checksum = &Sha256::digest(&Sha256::digest(&versioned_payload))[0..4];
@@ -320,8 +320,7 @@ fn main() {
     let (xpriv, private_key) = private_key_from_seed(unsecured_seed); // Step 7: Derive Private Key
     let compressed_public_key =
         generate_public_key(&private_key).expect("Failed to generate public key");
-    let address =
-        generate_address(compressed_public_key.clone()).expect("Failed to generate address");
+    let address = generate_address(&compressed_public_key).expect("Failed to generate address");
 
     eprintln!("Extended Private Key: {}", xpriv);
     eprintln!("Bitcoin Private Key: {}", private_key);
